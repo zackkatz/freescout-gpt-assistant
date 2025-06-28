@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "FreeScout GPT Assistant",
+  "version": "1.0",
+  "description": "Generate AI replies in FreeScout using GPT-4 with customizable documentation support.",
+  "permissions": ["scripting", "activeTab", "storage"],
+  "host_permissions": ["https://api.openai.com/", "https://*/"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "128": "icons/icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*/conversation/*"],
+      "js": ["content.js"]
+    }
+  ]
+}
