@@ -39,6 +39,9 @@ When used with the [WordPressFreeScout module](https://github.com/verygoodplugin
 - **Summernote Integration**: Native support for FreeScout's WYSIWYG editor
 - **Personalized Signatures**: Automatic sign-offs using agent names
 
+<img width="1504" alt="image" src="https://github.com/user-attachments/assets/2c64dc3d-bf49-4394-a684-e72252791e88" />
+
+
 ## 📦 Installation
 
 1. **Download the Extension**
