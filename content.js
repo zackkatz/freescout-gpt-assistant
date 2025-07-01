@@ -1,7 +1,7 @@
 async function loadSettings() {
   return new Promise((resolve) => {
     try {
-      chrome.storage.local.get(['systemPrompt', 'docsUrl', 'openaiKey', 'openaiModel', 'temperature', 'maxTokens', 'keyboardShortcut'], (result) => {
+      chrome.storage.local.get(['systemPrompt', 'docsUrl', 'openaiKey', 'openaiModel', 'temperature', 'maxTokens', 'keyboardShortcut', 'enableFeedback'], (result) => {
         if (chrome.runtime.lastError) {
           console.error('Extension context error:', chrome.runtime.lastError);
           resolve({ 
@@ -184,6 +184,337 @@ function injectReply(reply) {
   } else {
     console.error('Could not find reply editor');
   }
+  
+  // Add feedback UI after successful injection (if enabled)
+  loadSettings().then(settings => {
+    if (settings.enableFeedback !== false) { // Default to true if not set
+      addFeedbackUI(reply);
+    }
+  });
+}
+
+function addFeedbackUI(generatedResponse) {
+  // Remove any existing feedback UI
+  const existingFeedback = document.querySelector('.ai-feedback-container');
+  if (existingFeedback) {
+    existingFeedback.remove();
+  }
+  
+  // Generate unique ID for this response
+  const responseId = 'response_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+  
+  // Create feedback container
+  const feedbackContainer = document.createElement('div');
+  feedbackContainer.className = 'ai-feedback-container';
+  feedbackContainer.setAttribute('data-response-id', responseId);
+  
+  feedbackContainer.innerHTML = `
+    <div style="
+      background: #f8f9fa;
+      border: 1px solid #dee2e6;
+      border-radius: 6px;
+      padding: 12px;
+      margin: 10px 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 13px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    ">
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+        <span style="color: #6c757d; font-weight: 500;">How was this AI response?</span>
+        <button class="feedback-btn feedback-positive" data-rating="positive" style="
+          background: #28a745;
+          color: white;
+          border: none;
+          border-radius: 4px;
+          padding: 4px 8px;
+          cursor: pointer;
+          font-size: 12px;
+          transition: all 0.2s;
+                 ">👍 Good</button>
+         <button class="feedback-btn feedback-negative" data-rating="negative" style="
+           background: #dc3545;
+           color: white;
+           border: none;
+           border-radius: 4px;
+           padding: 4px 8px;
+           cursor: pointer;
+           font-size: 12px;
+           transition: all 0.2s;
+         ">👎 Needs Work</button>
+      </div>
+      <div class="feedback-details" style="display: none;">
+        <textarea class="feedback-notes" placeholder="What could be improved? (optional)" style="
+          width: 100%;
+          min-height: 60px;
+          padding: 8px;
+          border: 1px solid #ced4da;
+          border-radius: 4px;
+          font-size: 12px;
+          font-family: inherit;
+          resize: vertical;
+          margin-bottom: 8px;
+        "></textarea>
+        <button class="feedback-submit" style="
+          background: #007bff;
+          color: white;
+          border: none;
+          border-radius: 4px;
+          padding: 6px 12px;
+          cursor: pointer;
+          font-size: 12px;
+          margin-right: 8px;
+        ">Submit Feedback</button>
+        <button class="feedback-cancel" style="
+          background: #6c757d;
+          color: white;
+          border: none;
+          border-radius: 4px;
+          padding: 6px 12px;
+          cursor: pointer;
+          font-size: 12px;
+        ">Cancel</button>
+      </div>
+             <div class="feedback-success" style="display: none; color: #28a745; font-weight: 500;">
+         ✓ Thank you for your feedback!
+       </div>
+    </div>
+  `;
+  
+  // Find the best place to insert feedback UI - after the note editor panel
+  const noteEditor = document.querySelector('.note-editor.note-frame.panel');
+  if (noteEditor) {
+    // Insert after the entire note editor panel
+    noteEditor.parentNode.insertBefore(feedbackContainer, noteEditor.nextSibling);
+  } else {
+    // Fallback: try to find textarea and insert after its container
+    const textarea = document.querySelector('textarea#body');
+    if (textarea) {
+      const textareaContainer = textarea.closest('.form-group') || textarea.parentNode;
+      textareaContainer.parentNode.insertBefore(feedbackContainer, textareaContainer.nextSibling);
+    } else {
+      // Final fallback: append to conversation area
+      const conversationArea = document.querySelector('.conversation-body') || document.querySelector('.thread-list');
+      if (conversationArea) {
+        conversationArea.appendChild(feedbackContainer);
+      }
+    }
+  }
+  
+  // Add event listeners
+  setupFeedbackEventListeners(feedbackContainer, responseId, generatedResponse);
+}
+
+function setupFeedbackEventListeners(container, responseId, generatedResponse) {
+  const positiveBtn = container.querySelector('.feedback-positive');
+  const negativeBtn = container.querySelector('.feedback-negative');
+  const detailsDiv = container.querySelector('.feedback-details');
+  const submitBtn = container.querySelector('.feedback-submit');
+  const cancelBtn = container.querySelector('.feedback-cancel');
+  const successDiv = container.querySelector('.feedback-success');
+  const notesTextarea = container.querySelector('.feedback-notes');
+  
+  // Handle positive feedback
+  positiveBtn.addEventListener('click', () => {
+    handleFeedbackRating('positive', responseId, generatedResponse, container);
+  });
+  
+  // Handle negative feedback
+  negativeBtn.addEventListener('click', () => {
+    handleFeedbackRating('negative', responseId, generatedResponse, container);
+    // Show details form for negative feedback
+    detailsDiv.style.display = 'block';
+    notesTextarea.focus();
+  });
+  
+  // Handle submit
+  submitBtn.addEventListener('click', () => {
+    const notes = notesTextarea.value.trim();
+    submitFeedback(responseId, 'negative', notes, generatedResponse);
+    detailsDiv.style.display = 'none';
+    successDiv.style.display = 'block';
+    positiveBtn.style.display = 'none';
+    negativeBtn.style.display = 'none';
+  });
+  
+  // Handle cancel
+  cancelBtn.addEventListener('click', () => {
+    detailsDiv.style.display = 'none';
+    notesTextarea.value = '';
+  });
+  
+  // Auto-hide after 30 seconds if no interaction
+  setTimeout(() => {
+    if (container.parentNode && !container.querySelector('.feedback-success').style.display.includes('block')) {
+      container.style.opacity = '0.5';
+      container.style.transition = 'opacity 0.5s';
+    }
+  }, 30000);
+  
+  // Remove after 2 minutes
+  setTimeout(() => {
+    if (container.parentNode) {
+      container.remove();
+    }
+  }, 120000);
+}
+
+function handleFeedbackRating(rating, responseId, generatedResponse, container) {
+  if (rating === 'positive') {
+    // For positive feedback, submit immediately
+    submitFeedback(responseId, rating, '', generatedResponse);
+    
+    // Show success message
+    const successDiv = container.querySelector('.feedback-success');
+    successDiv.style.display = 'block';
+    container.querySelector('.feedback-positive').style.display = 'none';
+    container.querySelector('.feedback-negative').style.display = 'none';
+  }
+  // Negative feedback is handled in the event listener to show the form
+}
+
+async function submitFeedback(responseId, rating, notes, generatedResponse) {
+  try {
+    // Get current context for feedback
+    const threadMessages = extractThread();
+    const customerInfo = extractWordPressCustomerInfo();
+    
+    const feedbackData = {
+      id: responseId,
+      timestamp: Date.now(),
+      rating: rating,
+      notes: notes,
+      generatedResponse: generatedResponse,
+      conversationContext: threadMessages.slice(-3), // Last 3 messages for context
+      customerInfo: customerInfo ? {
+        name: customerInfo.name,
+        version: customerInfo.version,
+        versionStatus: customerInfo.versionStatus
+      } : null,
+      url: window.location.href
+    };
+    
+    // Store feedback locally
+    const storageKey = `feedback_${responseId}`;
+    await chrome.storage.local.set({[storageKey]: feedbackData});
+    
+    console.log('Feedback submitted:', feedbackData);
+    
+    // Analyze patterns if we have enough feedback
+    analyzeFeedbackPatterns();
+    
+  } catch (error) {
+    console.error('Error submitting feedback:', error);
+  }
+}
+
+async function analyzeFeedbackPatterns() {
+  try {
+    // Get all feedback data
+    const allData = await chrome.storage.local.get(null);
+    const feedbackEntries = Object.entries(allData)
+      .filter(([key]) => key.startsWith('feedback_'))
+      .map(([key, value]) => value)
+      .sort((a, b) => b.timestamp - a.timestamp); // Most recent first
+    
+    if (feedbackEntries.length < 5) return; // Need at least 5 feedback entries
+    
+    // Analyze recent feedback (last 30 days)
+    const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+    const recentFeedback = feedbackEntries.filter(f => f.timestamp > thirtyDaysAgo);
+    
+    if (recentFeedback.length === 0) return;
+    
+    // Calculate metrics
+    const positiveCount = recentFeedback.filter(f => f.rating === 'positive').length;
+    const negativeCount = recentFeedback.filter(f => f.rating === 'negative').length;
+    const successRate = positiveCount / (positiveCount + negativeCount);
+    
+    // Extract common issues from negative feedback
+    const negativeNotes = recentFeedback
+      .filter(f => f.rating === 'negative' && f.notes)
+      .map(f => f.notes.toLowerCase());
+    
+    const commonIssues = extractCommonIssues(negativeNotes);
+    
+    // Store analysis results
+    const analysisData = {
+      timestamp: Date.now(),
+      totalFeedback: recentFeedback.length,
+      successRate: successRate,
+      commonIssues: commonIssues,
+      suggestions: generateSuggestions(commonIssues, successRate)
+    };
+    
+    await chrome.storage.local.set({feedbackAnalysis: analysisData});
+    
+    console.log('Feedback analysis updated:', analysisData);
+    
+  } catch (error) {
+    console.error('Error analyzing feedback patterns:', error);
+  }
+}
+
+function extractCommonIssues(negativeNotes) {
+  const issuePatterns = {
+    'too_formal': ['too formal', 'stiff', 'robotic', 'cold'],
+    'too_casual': ['too casual', 'unprofessional', 'informal'],
+    'missing_context': ['missing context', 'generic', 'not specific', 'context'],
+    'too_long': ['too long', 'verbose', 'wordy', 'lengthy'],
+    'too_short': ['too short', 'brief', 'not enough detail', 'incomplete'],
+    'wrong_tone': ['wrong tone', 'tone', 'attitude'],
+    'technical_errors': ['wrong information', 'incorrect', 'error', 'mistake'],
+    'missing_greeting': ['no greeting', 'abrupt', 'starts too quickly'],
+    'missing_signature': ['no signature', 'no sign-off', 'no closing']
+  };
+  
+  const issues = {};
+  
+  negativeNotes.forEach(note => {
+    Object.entries(issuePatterns).forEach(([issue, patterns]) => {
+      if (patterns.some(pattern => note.includes(pattern))) {
+        issues[issue] = (issues[issue] || 0) + 1;
+      }
+    });
+  });
+  
+  // Return issues sorted by frequency
+  return Object.entries(issues)
+    .sort(([,a], [,b]) => b - a)
+    .slice(0, 5) // Top 5 issues
+    .map(([issue, count]) => ({issue, count}));
+}
+
+function generateSuggestions(commonIssues, successRate) {
+  const suggestions = [];
+  
+  if (successRate < 0.7) {
+    suggestions.push('Consider reviewing and adjusting your system prompt for better response quality.');
+  }
+  
+  commonIssues.forEach(({issue, count}) => {
+    switch(issue) {
+      case 'too_formal':
+        suggestions.push('Try adding "Use a friendly, conversational tone" to your system prompt.');
+        break;
+      case 'too_casual':
+        suggestions.push('Consider adding "Maintain a professional tone" to your system prompt.');
+        break;
+      case 'missing_context':
+        suggestions.push('The AI might need more specific context. Try providing more details before generation.');
+        break;
+      case 'too_long':
+        suggestions.push('Consider reducing the max tokens setting or adding "Be concise" to your system prompt.');
+        break;
+      case 'too_short':
+        suggestions.push('Try increasing max tokens or adding "Provide detailed explanations" to your system prompt.');
+        break;
+      case 'wrong_tone':
+        suggestions.push('Review your system prompt tone instructions and previous message analysis.');
+        break;
+    }
+  });
+  
+  return suggestions.slice(0, 3); // Top 3 suggestions
 }
 
 function parseKeyboardShortcut(shortcutString) {
@@ -483,6 +814,28 @@ function formatCustomerInfoForPrompt(customerInfo) {
   return customerContext;
 }
 
+function extractExistingContext() {
+  const noteEditable = document.querySelector('.note-editable');
+  const textarea = document.querySelector('textarea#body');
+  
+  let existingContext = '';
+  
+  if (noteEditable) {
+    // Extract text content from the WYSIWYG editor
+    existingContext = noteEditable.innerText.trim();
+  } else if (textarea) {
+    // Extract from textarea
+    existingContext = textarea.value.trim();
+  }
+  
+  // Only return context if it's not empty and not the generating status message
+  if (existingContext && !existingContext.includes('🤖 Generating AI response...')) {
+    return existingContext;
+  }
+  
+  return '';
+}
+
 document.addEventListener('keydown', async (e) => {
   const { systemPrompt, docsUrl, openaiKey, openaiModel, temperature, maxTokens, keyboardShortcut } = await loadSettings();
   const shortcut = parseKeyboardShortcut(keyboardShortcut);
@@ -500,6 +853,9 @@ document.addEventListener('keydown', async (e) => {
         injectReply('Error: No OpenAI API key configured. Please set your API key in the extension settings.');
         return;
       }
+      
+      // Extract any existing context from the textarea before showing generating status
+      const existingContext = extractExistingContext();
       
       // Show generating status immediately
       showGeneratingStatus();
@@ -537,6 +893,11 @@ document.addEventListener('keydown', async (e) => {
       const customerContext = formatCustomerInfoForPrompt(customerInfo);
       if (customerContext) {
         systemMessage += customerContext;
+      }
+      
+      // Add existing context if available
+      if (existingContext) {
+        systemMessage += `\n\n--- ADDITIONAL CONTEXT ---\nThe agent has provided the following context/notes to consider when generating the response:\n${existingContext}\n\nPlease incorporate this context appropriately into your response.`;
       }
       
       // Analyze and match user's tone from previous messages

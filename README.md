@@ -31,10 +31,13 @@ When used with the [WordPressFreeScout module](https://github.com/verygoodplugin
 - **Token Limits**: Control response length and API costs (50-4000 tokens)
 - **Custom Shortcuts**: Configurable keyboard shortcuts (default: Ctrl+Shift+G)
 - **Model Selection**: Choose the best OpenAI model for your needs
+- **Feedback System**: Optional response quality tracking (can be disabled)
 - **Error Handling**: Detailed error messages for troubleshooting
 
 ### User Experience
 - **Visual Feedback**: "🤖 Generating AI response..." status indicator
+- **Optional Context Input**: Type context/notes in the reply field before generation
+- **Response Feedback System**: Rate responses and track improvement over time
 - **Markdown Support**: Automatic conversion of links and bold text
 - **Summernote Integration**: Native support for FreeScout's WYSIWYG editor
 - **Personalized Signatures**: Automatic sign-offs using agent names
@@ -80,6 +83,10 @@ When used with the [WordPressFreeScout module](https://github.com/verygoodplugin
   - `500` = Short responses
   - `1000` = Medium responses (default)
   - `2000+` = Longer, detailed responses
+
+- **Enable Feedback System**: Toggle response quality tracking
+  - `Checked` = Show thumbs up/down buttons after responses (default)
+  - `Unchecked` = Disable feedback collection for cleaner interface
 
 ## 💰 Cost Estimation
 
@@ -215,10 +222,122 @@ The extension intelligently parses the WordPress widget to extract:
 ### Generating Responses
 
 1. **Open a FreeScout conversation**
-2. **Press your configured shortcut** (default: Ctrl+Shift+G)
-3. **Wait for generation** - you'll see "🤖 Generating AI response..."
-4. **Review and edit** the generated response as needed
-5. **Send the response** using FreeScout's normal send button
+2. **Optional: Add context** - Type any context or notes in the reply field (e.g., "this was a bug and we fixed it for today's 3.43.3 update")
+3. **Press your configured shortcut** (default: Ctrl+Shift+G)
+4. **Wait for generation** - you'll see "🤖 Generating AI response..."
+5. **Review and edit** the generated response as needed
+6. **Send the response** using FreeScout's normal send button
+
+### Using Optional Context
+
+You can provide additional context to help the AI generate more accurate responses:
+
+**Example workflow:**
+- **Type in reply field**: "this was a bug and we fixed it for today's 3.43.3 update"
+- **Press Ctrl+Shift+G**
+- **AI generates**: "Hi John, thanks for reporting this issue. This was indeed a bug that we've addressed in today's 3.43.3 update. Please update to the latest version and the issue should be resolved. Let me know if you need any help with the update process. Best, Sarah"
+
+**Common context examples:**
+- "offer 20% discount for renewal"
+- "this feature will be available in next month's release"
+- "customer is on legacy plan, needs migration"
+- "escalate to development team"
+
+### Providing Feedback on AI Responses
+
+After each AI response is generated, you'll see feedback buttons:
+
+**Rate the response:**
+- **👍 Good** - Response was helpful and accurate
+- **👎 Needs Work** - Response needs improvement
+
+**For negative feedback:**
+- Provide specific notes about what could be improved
+- Common feedback areas: tone, accuracy, length, context usage
+
+**Feedback Analytics:**
+- View success rates and improvement trends in extension settings
+- Get personalized suggestions based on your feedback patterns
+- Export detailed feedback reports for analysis
+
+## 📊 Response Feedback System
+
+The extension includes an intelligent feedback system to help you track and improve AI response quality over time.
+
+### How It Works
+
+**After each AI response generation:**
+1. **Feedback buttons appear** below the reply editor (👍 Good / 👎 Needs Work)
+2. **Rate the response** with a single click
+3. **Add improvement notes** (optional) for negative feedback
+4. **Data is stored locally** in your browser for privacy
+
+### Feedback Analytics Dashboard
+
+**Available in extension settings:**
+- **Success Rate**: Percentage of positive vs negative responses (last 30 days)
+- **Response Volume**: Total number of rated responses
+- **Smart Suggestions**: AI-powered recommendations based on feedback patterns
+- **Trend Analysis**: Track improvement over time
+
+### Common Feedback Patterns
+
+The system automatically identifies issues and provides suggestions:
+
+| **Issue Detected** | **Suggested Improvement** |
+|-------------------|-------------------------|
+| Too formal/robotic | Add "Use a friendly, conversational tone" to system prompt |
+| Too casual | Add "Maintain a professional tone" to system prompt |
+| Missing context | Provide more specific context before generation |
+| Too long/verbose | Reduce max tokens or add "Be concise" to system prompt |
+| Too short/incomplete | Increase max tokens or add "Provide detailed explanations" |
+| Wrong tone | Review tone instructions and previous message analysis |
+
+### Data Management
+
+**Granular cleanup options in settings:**
+- **Clear 30+ days old** - Remove outdated feedback entries
+- **Clear 90+ days old** - More aggressive cleanup for storage management
+- **Clear negative only** - Focus on positive patterns only
+- **Clear all feedback** - Complete reset of feedback data
+
+**Export and Analysis:**
+- **View All Feedback Data** - Opens comprehensive HTML report
+- **Individual entry details** - Response text, notes, customer context, timestamps
+- **Bulk statistics** - Success rates, common issues, improvement trends
+
+### Privacy and Storage
+
+- **Local storage only** - All feedback data stays in your browser
+- **No external servers** - Complete privacy and control
+- **Automatic cleanup** - Configurable retention periods
+- **Export capability** - Take your data with you anytime
+
+### Best Practices
+
+**For optimal feedback insights:**
+
+1. **Rate consistently** - Try to rate most responses for accurate trends
+2. **Be specific in notes** - Detailed feedback generates better suggestions
+3. **Regular cleanup** - Remove old data monthly to keep insights current
+4. **Act on suggestions** - Update system prompts based on recommendations
+5. **Monitor trends** - Check analytics weekly to track improvement
+
+**Feedback categories to consider:**
+- **Accuracy**: Was the information correct?
+- **Tone**: Did it match your communication style?
+- **Completeness**: Did it address all customer concerns?
+- **Context usage**: Did it incorporate provided context well?
+- **Professional quality**: Would you send this response as-is?
+
+### Disabling Feedback
+
+**If you prefer a cleaner interface:**
+1. Open extension settings
+2. Uncheck "Enable response feedback system"
+3. Save settings
+
+The feedback system is **enabled by default** but can be completely disabled if you find it intrusive. All existing feedback data is preserved when disabled and will reappear if you re-enable the feature.
 
 ### Best Practices
 
@@ -328,6 +447,23 @@ This project is open source. Please check the license file for details.
 - **Very Good Plugins** for the [WordPressFreeScout module](https://github.com/verygoodplugins/WordPressFreeScout)
 - **OpenAI** for providing the GPT API
 - **FreeScout** for the excellent help desk platform
+
+## 📝 Changelog
+
+### Version 1.1 (Latest)
+- ✅ **NEW: Optional Context Input** - Type context/notes in the reply field before generating AI responses
+- ✅ **NEW: Response Feedback System** - Rate AI responses with thumbs up/down and provide improvement notes
+- The AI will incorporate your context into the generated response
+- Perfect for providing specific information like "this was fixed in today's update" or "offer 20% discount"
+- Context text gets replaced with the full AI-generated response
+- Feedback analytics help identify patterns and suggest improvements
+
+### Version 1.0
+- Initial release with GPT-4 integration
+- WordPress customer data extraction
+- Documentation integration with llms.txt support
+- Tone matching and personalized signatures
+- Smart caching and error handling
 
 ## 📞 Support
 
