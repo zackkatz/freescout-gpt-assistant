@@ -981,8 +981,6 @@ document.addEventListener('keydown', async (e) => {
           input: fullInput,
           reasoning: { effort: "low" },  // Low reasoning for fast responses
           text: { verbosity: "low" },    // Low verbosity as requested
-          temperature: temperature,
-          max_tokens: maxTokens,
           stream: true  // Enable streaming for faster perceived response
         };
       } else {

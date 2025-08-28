@@ -476,7 +476,7 @@ This project is open source. Please check the license file for details.
 
 ## 📝 Changelog
 
-### Version 1.2.0 (August 28, 2025)
+### Version 1.2.0 WIP
 - ✅ **NEW: GPT-5 Model Support** - Added support for GPT-5, GPT-5 Mini, and GPT-5 Nano models
 - ✅ **NEW: Streaming Responses** - Real-time text generation for GPT-5 models with visual feedback
 - ✅ **NEW: Responses API** - Integrated OpenAI's new /v1/responses endpoint for GPT-5 models
