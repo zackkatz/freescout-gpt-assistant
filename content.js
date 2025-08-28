@@ -8,7 +8,7 @@ async function loadSettings() {
             systemPrompt: '', 
             docsUrl: '', 
             openaiKey: '', 
-            openaiModel: 'gpt-4o', 
+            openaiModel: 'gpt-5', 
             temperature: 0.7, 
             maxTokens: 1000, 
             keyboardShortcut: 'Ctrl+Shift+G' 
@@ -64,6 +64,34 @@ async function loadDocs(url) {
   });
 }
 
+function sanitizeText(text) {
+  if (!text || typeof text !== 'string') return '';
+  
+  try {
+    // Remove or replace problematic characters
+    let sanitized = text
+      // Replace null bytes and other control characters
+      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+      // Replace problematic Unicode characters that might cause JSON issues
+      .replace(/[\uFFFE\uFFFF]/g, '')
+      // Replace unpaired surrogates
+      .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/g, '')
+      .replace(/(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '')
+      // Normalize whitespace
+      .replace(/\s+/g, ' ')
+      .trim();
+    
+    // Test if the string can be JSON serialized
+    JSON.stringify(sanitized);
+    
+    return sanitized;
+  } catch (error) {
+    console.warn('Text sanitization failed, using fallback:', error);
+    // Fallback: keep only basic ASCII and common Unicode
+    return text.replace(/[^\x20-\x7E\u00A0-\u024F\u1E00-\u1EFF]/g, '').trim();
+  }
+}
+
 function extractThread() {
   const messages = [];
   
@@ -76,8 +104,8 @@ function extractThread() {
     
     if (!content) return;
     
-    const messageText = content.innerText.trim();
-    const personName = person ? person.innerText.trim() : 'Unknown';
+    const messageText = sanitizeText(content.innerText.trim());
+    const personName = sanitizeText(person ? person.innerText.trim() : 'Unknown');
     
     if (item.classList.contains('thread-type-customer')) {
       messages.push({
@@ -100,7 +128,7 @@ function extractThread() {
   // Fallback to original method if no structured messages found
   if (messages.length === 0) {
     const fallbackContent = [...document.querySelectorAll('div.thread-content')]
-      .map(el => el.innerText.trim())
+      .map(el => sanitizeText(el.innerText.trim()))
       .join("\n\n");
     
     if (fallbackContent) {
@@ -570,7 +598,7 @@ function extractWordPressCustomerInfo() {
     // Extract customer name and basic info
     const userLink = wpWidget.querySelector('a[href*="user-edit.php"]');
     if (userLink) {
-      customerInfo.name = userLink.textContent.trim();
+      customerInfo.name = sanitizeText(userLink.textContent.trim());
     }
 
     // Extract basic customer details from the first list
@@ -580,8 +608,8 @@ function extractWordPressCustomerInfo() {
       listItems.forEach(item => {
         const label = item.querySelector('label');
         if (label) {
-          const labelText = label.textContent.trim();
-          const value = item.textContent.replace(labelText, '').trim();
+          const labelText = sanitizeText(label.textContent.trim());
+          const value = sanitizeText(item.textContent.replace(label.textContent, '').trim());
           
           switch (labelText) {
             case 'Registered':
@@ -596,7 +624,7 @@ function extractWordPressCustomerInfo() {
             case 'Version':
               const versionSpan = item.querySelector('.label');
               if (versionSpan) {
-                customerInfo.version = versionSpan.textContent.trim();
+                customerInfo.version = sanitizeText(versionSpan.textContent.trim());
                 customerInfo.versionStatus = versionSpan.classList.contains('label-danger') ? 'outdated' : 'current';
               }
               break;
@@ -822,10 +850,10 @@ function extractExistingContext() {
   
   if (noteEditable) {
     // Extract text content from the WYSIWYG editor
-    existingContext = noteEditable.innerText.trim();
+    existingContext = sanitizeText(noteEditable.innerText.trim());
   } else if (textarea) {
     // Extract from textarea
-    existingContext = textarea.value.trim();
+    existingContext = sanitizeText(textarea.value.trim());
   }
   
   // Only return context if it's not empty and not the generating status message
@@ -924,47 +952,168 @@ document.addEventListener('keydown', async (e) => {
         });
       }
 
-      const res = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${openaiKey.trim()}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
+      // Sanitize all message content before sending to API
+      const sanitizedMessages = messages.map(msg => ({
+        ...msg,
+        content: sanitizeText(msg.content)
+      }));
+      
+      // Also sanitize the system message
+      const sanitizedSystemMessage = sanitizeText(systemMessage);
+      
+      // Check if using GPT-5 models
+      const isGPT5 = openaiModel.startsWith('gpt-5');
+      
+      let requestBody;
+      let apiEndpoint;
+      
+      if (isGPT5) {
+        // GPT-5 uses the new /v1/responses API
+        apiEndpoint = "https://api.openai.com/v1/responses";
+        
+        // Combine system prompt and conversation into input
+        const fullInput = `${sanitizedSystemMessage}\n\n${sanitizedMessages.map(msg => 
+          `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`
+        ).join('\n\n')}`;
+        
+        requestBody = {
           model: openaiModel,
-          messages: messages,
+          input: fullInput,
+          reasoning: { effort: "low" },  // Low reasoning for fast responses
+          text: { verbosity: "low" },    // Low verbosity as requested
+          temperature: temperature,
+          max_tokens: maxTokens,
+          stream: true  // Enable streaming for faster perceived response
+        };
+      } else {
+        // Legacy models use /v1/chat/completions
+        apiEndpoint = "https://api.openai.com/v1/chat/completions";
+        requestBody = {
+          model: openaiModel,
+          messages: [
+            { role: 'system', content: sanitizedSystemMessage },
+            ...sanitizedMessages
+          ],
           temperature: temperature,
           max_tokens: maxTokens
-        })
-      });
+        };
+      }
+      
+      // Validate JSON serialization
+      try {
+        JSON.stringify(requestBody);
+      } catch (jsonError) {
+        throw new Error(`JSON serialization failed: ${jsonError.message}. This usually indicates malformed UTF-8 characters in the conversation.`);
+      }
 
-      const data = await res.json();
-      
-      // Check for API errors
-      if (!res.ok) {
-        let errorMessage = `API Error (${res.status}): `;
-        if (data.error) {
-          errorMessage += data.error.message || data.error.type || 'Unknown error';
-        } else {
-          errorMessage += res.statusText || 'Request failed';
+      // For GPT-5, enable streaming
+      if (isGPT5 && requestBody.stream) {
+        // Streaming implementation for GPT-5
+        const res = await fetch(apiEndpoint, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${openaiKey.trim()}`,
+            "Content-Type": "application/json; charset=utf-8"
+          },
+          body: JSON.stringify(requestBody)
+        });
+
+        if (!res.ok) {
+          const errorData = await res.json();
+          let errorMessage = `API Error (${res.status}): `;
+          if (errorData.error) {
+            errorMessage += errorData.error.message || errorData.error.type || 'Unknown error';
+          } else {
+            errorMessage += res.statusText || 'Request failed';
+          }
+          throw new Error(errorMessage);
         }
-        throw new Error(errorMessage);
+
+        // Process server-sent events stream
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let fullReply = '';
+        
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          
+          const chunk = decoder.decode(value);
+          const lines = chunk.split('\n');
+          
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6);
+              if (data === '[DONE]') continue;
+              
+              try {
+                const parsed = JSON.parse(data);
+                if (parsed.output_text_delta) {
+                  fullReply += parsed.output_text_delta;
+                  // Update the reply in real-time
+                  injectReply(fullReply + '▌');
+                }
+              } catch (e) {
+                // Skip invalid JSON chunks
+              }
+            }
+          }
+        }
+        
+        // Final injection without cursor
+        injectReply(fullReply);
+        
+      } else {
+        // Non-streaming request (for GPT-5 without streaming or legacy models)
+        const res = await fetch(apiEndpoint, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${openaiKey.trim()}`,
+            "Content-Type": "application/json; charset=utf-8"
+          },
+          body: JSON.stringify(requestBody)
+        });
+
+        const data = await res.json();
+        
+        // Check for API errors
+        if (!res.ok) {
+          let errorMessage = `API Error (${res.status}): `;
+          if (data.error) {
+            errorMessage += data.error.message || data.error.type || 'Unknown error';
+          } else {
+            errorMessage += res.statusText || 'Request failed';
+          }
+          throw new Error(errorMessage);
+        }
+        
+        // Extract reply based on API type
+        let reply;
+        if (isGPT5) {
+          reply = data.output_text || data.output;
+        } else {
+          reply = data.choices?.[0]?.message?.content;
+        }
+        
+        if (!reply) {
+          throw new Error('No response content received from OpenAI API');
+        }
+        
+        injectReply(reply);
       }
-      
-      const reply = data.choices?.[0]?.message?.content;
-      if (!reply) {
-        throw new Error('No response content received from OpenAI API');
-      }
-      
-      injectReply(reply);
     } catch (error) {
       console.error('Error generating response:', error);
       clearGeneratingStatus();
       
-      // Provide detailed error message to help with troubleshooting
+      // Enhanced error message for UTF-8 issues
       let errorMessage = 'Error generating AI response: ';
       if (error.message) {
         errorMessage += error.message;
+        
+        // Specific guidance for UTF-8 issues
+        if (error.message.includes('malformed') || error.message.includes('UTF-8') || error.message.includes('JSON serialization')) {
+          errorMessage += '\n\n🔧 This appears to be a text encoding issue. The conversation may contain special characters that need to be cleaned. Please try refreshing the page and trying again.';
+        }
       } else {
         errorMessage += 'Unknown error occurred';
       }

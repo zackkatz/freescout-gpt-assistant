@@ -18,7 +18,7 @@ chrome.storage.local.get(['systemPrompt', 'docsUrl', 'openaiKey', 'openaiModel',
   document.getElementById('systemPrompt').value = result.systemPrompt || DEFAULT_SYSTEM_PROMPT;
   document.getElementById('docsUrl').value = result.docsUrl || '';
   document.getElementById('openaiKey').value = result.openaiKey || '';
-  document.getElementById('openaiModel').value = result.openaiModel || 'gpt-4o';
+  document.getElementById('openaiModel').value = result.openaiModel || 'gpt-5';
   document.getElementById('temperature').value = result.temperature || 0.7;
   document.getElementById('maxTokens').value = result.maxTokens || 1000;
   document.getElementById('keyboardShortcut').value = result.keyboardShortcut || 'Ctrl+Shift+G';

@@ -5,10 +5,13 @@ A powerful Chrome extension that integrates OpenAI's GPT models with FreeScout t
 ## 🚀 Features
 
 ### Core AI Integration
-- **GPT-4 Support**: Use GPT-4o, GPT-4 Turbo, or GPT-3.5 Turbo models
+- **GPT-5 Support**: Use the latest GPT-5 family (GPT-5, GPT-5 Mini, GPT-5 Nano) with low-latency streaming
+- **GPT-4 Support**: Also supports GPT-4o, GPT-4 Turbo, and GPT-3.5 Turbo models
 - **Smart Context Building**: Automatically extracts conversation history and customer information
 - **Tone Matching**: Analyzes your previous responses to maintain consistent communication style
 - **Customizable System Prompts**: Define your support agent's personality and guidelines
+- **Streaming Responses**: Real-time text generation with GPT-5 models for faster perceived response times
+- **Optimized for Speed**: GPT-5 models configured with low reasoning effort and verbosity for quick responses
 
 ### Documentation Integration
 - **llms.txt Support**: Automatically fetch and include relevant documentation in AI responses
@@ -68,7 +71,7 @@ When used with the [WordPressFreeScout module](https://github.com/verygoodplugin
 1. **Click the extension icon** in your Chrome toolbar
 2. **Configure required settings**:
    - **OpenAI API Key**: Your API key from OpenAI
-   - **OpenAI Model**: Choose GPT-4o (recommended), GPT-4 Turbo, or GPT-3.5 Turbo
+   - **OpenAI Model**: Choose from GPT-5 (latest, fast), GPT-5 Mini, GPT-5 Nano, GPT-4o, GPT-4 Turbo, or GPT-3.5 Turbo
    - **System Prompt**: Customize the AI's behavior and tone
    - **Keyboard Shortcut**: Default is Ctrl+Shift+G (Cmd+Shift+G on Mac)
 
@@ -101,6 +104,9 @@ Based on OpenAI's current pricing (as of 2025) and assuming an average conversat
 
 | Model | Input Cost | Output Cost | Total Cost per Response |
 |-------|------------|-------------|------------------------|
+| **GPT-5** | $0.002 per 1K tokens | $0.008 per 1K tokens | **~$0.006** |
+| **GPT-5 Mini** | $0.001 per 1K tokens | $0.004 per 1K tokens | **~$0.003** |
+| **GPT-5 Nano** | $0.0005 per 1K tokens | $0.002 per 1K tokens | **~$0.0015** |
 | **GPT-4o** | $0.0025 per 1K tokens | $0.01 per 1K tokens | **~$0.008** |
 | **GPT-4 Turbo** | $0.01 per 1K tokens | $0.03 per 1K tokens | **~$0.029** |
 | **GPT-3.5 Turbo** | $0.0005 per 1K tokens | $0.0015 per 1K tokens | **~$0.001** |
@@ -108,16 +114,25 @@ Based on OpenAI's current pricing (as of 2025) and assuming an average conversat
 ### Monthly Cost Examples
 
 **Light Usage** (50 responses/month):
+- GPT-5: ~$0.30/month
+- GPT-5 Mini: ~$0.15/month
+- GPT-5 Nano: ~$0.08/month
 - GPT-4o: ~$0.40/month
 - GPT-4 Turbo: ~$1.45/month  
 - GPT-3.5 Turbo: ~$0.05/month
 
 **Medium Usage** (200 responses/month):
+- GPT-5: ~$1.20/month
+- GPT-5 Mini: ~$0.60/month
+- GPT-5 Nano: ~$0.30/month
 - GPT-4o: ~$1.60/month
 - GPT-4 Turbo: ~$5.80/month
 - GPT-3.5 Turbo: ~$0.20/month
 
 **Heavy Usage** (500 responses/month):
+- GPT-5: ~$3.00/month
+- GPT-5 Mini: ~$1.50/month
+- GPT-5 Nano: ~$0.75/month
 - GPT-4o: ~$4.00/month
 - GPT-4 Turbo: ~$14.50/month
 - GPT-3.5 Turbo: ~$0.50/month
@@ -125,9 +140,12 @@ Based on OpenAI's current pricing (as of 2025) and assuming an average conversat
 ### Cost Optimization Tips
 
 1. **Choose the Right Model**:
-   - GPT-4o: Best balance of quality and cost (recommended)
-   - GPT-4 Turbo: Highest quality, highest cost
-   - GPT-3.5 Turbo: Most economical, good for simple responses
+   - GPT-5: Latest model with fast streaming responses (recommended for speed)
+   - GPT-5 Mini: Good balance of speed and cost
+   - GPT-5 Nano: Most economical GPT-5 option
+   - GPT-4o: Best balance of quality and cost for GPT-4 generation
+   - GPT-4 Turbo: Highest quality GPT-4, highest cost
+   - GPT-3.5 Turbo: Most economical overall, good for simple responses
 
 2. **Optimize Token Usage**:
    - Set appropriate max_tokens limits (500-1000 for most responses)
@@ -458,7 +476,18 @@ This project is open source. Please check the license file for details.
 
 ## 📝 Changelog
 
-### Version 1.1 (Latest)
+### Version 1.2.0 (August 28, 2025)
+- ✅ **NEW: GPT-5 Model Support** - Added support for GPT-5, GPT-5 Mini, and GPT-5 Nano models
+- ✅ **NEW: Streaming Responses** - Real-time text generation for GPT-5 models with visual feedback
+- ✅ **NEW: Responses API** - Integrated OpenAI's new /v1/responses endpoint for GPT-5 models
+- ✅ **IMPROVED: Low-Latency Mode** - GPT-5 models configured with low reasoning effort and verbosity for faster responses
+- Maintains full backward compatibility with GPT-4 and GPT-3.5 models
+
+### Version 1.1.1 (July 1, 2025)
+- ✅ **IMPROVED: Default System Prompt** - Updated to allow tasteful use of emojis and avoid markdown headings
+- Enhanced user experience with better formatting guidelines
+
+### Version 1.1.0 (July 1, 2025)
 - ✅ **NEW: Optional Context Input** - Type context/notes in the reply field before generating AI responses
 - ✅ **NEW: Response Feedback System** - Rate AI responses with thumbs up/down and provide improvement notes
 - The AI will incorporate your context into the generated response
@@ -466,7 +495,7 @@ This project is open source. Please check the license file for details.
 - Context text gets replaced with the full AI-generated response
 - Feedback analytics help identify patterns and suggest improvements
 
-### Version 1.0
+### Version 1.0.0 (June 28, 2025)
 - Initial release with GPT-4 integration
 - WordPress customer data extraction
 - Documentation integration with llms.txt support
