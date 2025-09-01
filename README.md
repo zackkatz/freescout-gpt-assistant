@@ -5,12 +5,12 @@ A powerful Chrome extension that integrates OpenAI's GPT models with FreeScout t
 ## 🚀 Features
 
 ### Core AI Integration
-- **GPT-5 Support**: Use the latest GPT-5 family (GPT-5, GPT-5 Mini, GPT-5 Nano) with low-latency streaming
+- **GPT-5 Support**: Use the latest GPT-5 family (GPT-5, GPT-5 Mini, GPT-5 Nano)
 - **GPT-4 Support**: Also supports GPT-4o, GPT-4 Turbo, and GPT-3.5 Turbo models
 - **Smart Context Building**: Automatically extracts conversation history and customer information
 - **Tone Matching**: Analyzes your previous responses to maintain consistent communication style
 - **Customizable System Prompts**: Define your support agent's personality and guidelines
-- **Streaming Responses**: Real-time text generation with GPT-5 models for faster perceived response times
+- **Fast Responses**: Optimized prompts and context handling for quick replies
 - **Optimized for Speed**: GPT-5 models configured with low reasoning effort and verbosity for quick responses
 
 ### Documentation Integration
@@ -81,11 +81,13 @@ When used with the [WordPressFreeScout module](https://github.com/verygoodplugin
   - `0.1` = Very consistent, predictable responses
   - `0.7` = Balanced (default)
   - `0.9` = More creative, varied responses
+  - Note: For GPT‑5 via the Responses API, this setting is ignored.
 
 - **Max Tokens**: Control response length (50-4000)
   - `500` = Short responses
   - `1000` = Medium responses (default)
   - `2000+` = Longer, detailed responses
+  - Note: For GPT‑5 via the Responses API, the extension ignores this setting to avoid capping combined reasoning+text tokens, which can suppress visible output. Legacy models still use it.
 
 - **Enable Feedback System**: Toggle response quality tracking
   - `Checked` = Show thumbs up/down buttons after responses (default)
@@ -140,7 +142,7 @@ Based on OpenAI's current pricing (as of 2025) and assuming an average conversat
 ### Cost Optimization Tips
 
 1. **Choose the Right Model**:
-   - GPT-5: Latest model with fast streaming responses (recommended for speed)
+   - GPT-5: Latest model with fast responses
    - GPT-5 Mini: Good balance of speed and cost
    - GPT-5 Nano: Most economical GPT-5 option
    - GPT-4o: Best balance of quality and cost for GPT-4 generation
@@ -476,11 +478,10 @@ This project is open source. Please check the license file for details.
 
 ## 📝 Changelog
 
-### Version 1.2.0 WIP
+### Version 1.2.0
 - ✅ **NEW: GPT-5 Model Support** - Added support for GPT-5, GPT-5 Mini, and GPT-5 Nano models
-- ✅ **NEW: Streaming Responses** - Real-time text generation for GPT-5 models with visual feedback
-- ✅ **NEW: Responses API** - Integrated OpenAI's new /v1/responses endpoint for GPT-5 models
-- ✅ **IMPROVED: Low-Latency Mode** - GPT-5 models configured with low reasoning effort and verbosity for faster responses
+- ✅ **NEW: Responses API** - Integrated OpenAI's /v1/responses endpoint for GPT-5 models
+- ✅ **IMPROVED: Stability** - Streaming temporarily disabled for GPT‑5 while we validate event formats
 - Maintains full backward compatibility with GPT-4 and GPT-3.5 models
 
 ### Version 1.1.1 (July 1, 2025)

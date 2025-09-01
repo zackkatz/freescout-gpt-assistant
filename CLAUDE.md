@@ -56,7 +56,7 @@ The extension consists of three main components:
 - Extracts customer data from WordPress sidebar widget
 - Includes documentation from llms.txt source
 - Handles API errors with user-friendly messages
-- Streaming support for GPT-5 models with real-time text display
+- GPT-5 currently uses non-streaming responses for stability
 - Configured with low reasoning effort and verbosity for fast responses
 
 ### Documentation Caching (background.js:36-91)
@@ -79,7 +79,7 @@ The extension consists of three main components:
 ### Adding a New OpenAI Model
 1. Update model options in popup.html (select dropdown)
 2. Ensure model name matches OpenAI's API expectations
-3. For GPT-5 models: Uses /v1/responses API with streaming
+3. For GPT-5 models: Uses /v1/responses API (non-streaming)
 4. For legacy models: Uses /v1/chat/completions API
 5. Check isGPT5 logic in content.js if adding new model families
 

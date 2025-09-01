@@ -938,11 +938,9 @@ document.addEventListener('keydown', async (e) => {
 
       // Build the messages array
       const messages = [
-        { role: 'system', content: systemMessage }
+        { role: 'system', content: systemMessage },
+        ...threadMessages
       ];
-      
-      // Add all conversation messages
-      messages.push(...threadMessages);
       
       // Add a final instruction if we have conversation history
       if (threadMessages.length > 0) {
@@ -961,6 +959,9 @@ document.addEventListener('keydown', async (e) => {
       // Also sanitize the system message
       const sanitizedSystemMessage = sanitizeText(systemMessage);
       
+      // Conversation messages without system to avoid duplication across APIs
+      const conversationMessages = sanitizedMessages.filter(m => m.role !== 'system');
+      
       // Check if using GPT-5 models
       const isGPT5 = openaiModel.startsWith('gpt-5');
       
@@ -968,20 +969,24 @@ document.addEventListener('keydown', async (e) => {
       let apiEndpoint;
       
       if (isGPT5) {
-        // GPT-5 uses the new /v1/responses API
+        // GPT-5 uses the new /v1/responses API (non-streaming for stability)
         apiEndpoint = "https://api.openai.com/v1/responses";
-        
-        // Combine system prompt and conversation into input
-        const fullInput = `${sanitizedSystemMessage}\n\n${sanitizedMessages.map(msg => 
-          `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`
-        ).join('\n\n')}`;
-        
+
+        // Use structured messages for Responses API input
+        const inputMessages = [
+          { role: 'system', content: sanitizedSystemMessage },
+          ...conversationMessages
+        ];
+
         requestBody = {
           model: openaiModel,
-          input: fullInput,
-          reasoning: { effort: "low" },  // Low reasoning for fast responses
-          text: { verbosity: "low" },    // Low verbosity as requested
-          stream: true  // Enable streaming for faster perceived response
+          input: inputMessages,
+          // Favor visible text output
+          text: { format: { type: 'text' } },
+          // Maximize reasoning to evaluate quality/costs
+          reasoning: { effort: 'high' }
+          // Note: We intentionally omit max_output_tokens so the model
+          // can use its full available budget (visible + reasoning).
         };
       } else {
         // Legacy models use /v1/chat/completions
@@ -990,7 +995,7 @@ document.addEventListener('keydown', async (e) => {
           model: openaiModel,
           messages: [
             { role: 'system', content: sanitizedSystemMessage },
-            ...sanitizedMessages
+            ...conversationMessages
           ],
           temperature: temperature,
           max_tokens: maxTokens
@@ -1004,101 +1009,68 @@ document.addEventListener('keydown', async (e) => {
         throw new Error(`JSON serialization failed: ${jsonError.message}. This usually indicates malformed UTF-8 characters in the conversation.`);
       }
 
-      // For GPT-5, enable streaming
-      if (isGPT5 && requestBody.stream) {
-        // Streaming implementation for GPT-5
-        const res = await fetch(apiEndpoint, {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${openaiKey.trim()}`,
-            "Content-Type": "application/json; charset=utf-8"
-          },
-          body: JSON.stringify(requestBody)
-        });
+      // Single non-streaming request for all models
+      const res = await fetch(apiEndpoint, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${openaiKey.trim()}`,
+          "Content-Type": "application/json; charset=utf-8"
+        },
+        body: JSON.stringify(requestBody)
+      });
 
-        if (!res.ok) {
-          const errorData = await res.json();
-          let errorMessage = `API Error (${res.status}): `;
-          if (errorData.error) {
-            errorMessage += errorData.error.message || errorData.error.type || 'Unknown error';
-          } else {
-            errorMessage += res.statusText || 'Request failed';
-          }
-          throw new Error(errorMessage);
+      const data = await res.json();
+      
+      // Check for API errors
+      if (!res.ok) {
+        let errorMessage = `API Error (${res.status}): `;
+        if (data && data.error) {
+          errorMessage += data.error.message || data.error.type || 'Unknown error';
+        } else {
+          errorMessage += res.statusText || 'Request failed';
         }
-
-        // Process server-sent events stream
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let fullReply = '';
-        
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          
-          const chunk = decoder.decode(value);
-          const lines = chunk.split('\n');
-          
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const data = line.slice(6);
-              if (data === '[DONE]') continue;
-              
-              try {
-                const parsed = JSON.parse(data);
-                if (parsed.output_text_delta) {
-                  fullReply += parsed.output_text_delta;
-                  // Update the reply in real-time
-                  injectReply(fullReply + '▌');
+        throw new Error(errorMessage);
+      }
+      
+      // Extract reply based on API type
+      let reply;
+      if (isGPT5) {
+        if (data) {
+          // Prefer SDK-style aggregator if present in HTTP response
+          if (typeof data.output_text === 'string' && data.output_text.trim()) {
+            reply = data.output_text;
+          } else if (Array.isArray(data.output)) {
+            // Aggregate message content from Responses API shape
+            const parts = [];
+            for (const item of data.output) {
+              if (!item || typeof item !== 'object') continue;
+              // Expect message items with content array
+              const contentArray = Array.isArray(item.content) ? item.content : [];
+              for (const c of contentArray) {
+                if (!c) continue;
+                if (typeof c === 'string') {
+                  parts.push(c);
+                } else if (typeof c.text === 'string') {
+                  parts.push(c.text);
+                } else if (typeof c.content === 'string') {
+                  parts.push(c.content);
                 }
-              } catch (e) {
-                // Skip invalid JSON chunks
               }
             }
+            reply = parts.join('');
+          } else if (typeof data.output === 'string') {
+            reply = data.output;
           }
         }
-        
-        // Final injection without cursor
-        injectReply(fullReply);
-        
       } else {
-        // Non-streaming request (for GPT-5 without streaming or legacy models)
-        const res = await fetch(apiEndpoint, {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${openaiKey.trim()}`,
-            "Content-Type": "application/json; charset=utf-8"
-          },
-          body: JSON.stringify(requestBody)
-        });
-
-        const data = await res.json();
-        
-        // Check for API errors
-        if (!res.ok) {
-          let errorMessage = `API Error (${res.status}): `;
-          if (data.error) {
-            errorMessage += data.error.message || data.error.type || 'Unknown error';
-          } else {
-            errorMessage += res.statusText || 'Request failed';
-          }
-          throw new Error(errorMessage);
-        }
-        
-        // Extract reply based on API type
-        let reply;
-        if (isGPT5) {
-          reply = data.output_text || data.output;
-        } else {
-          reply = data.choices?.[0]?.message?.content;
-        }
-        
-        if (!reply) {
-          throw new Error('No response content received from OpenAI API');
-        }
-        
-        injectReply(reply);
+        reply = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
       }
+      
+      if (!reply || (typeof reply === 'string' && reply.trim() === '')) {
+        throw new Error('No response content received from OpenAI API');
+      }
+      
+      injectReply(typeof reply === 'string' ? reply : String(reply));
     } catch (error) {
       console.error('Error generating response:', error);
       clearGeneratingStatus();
