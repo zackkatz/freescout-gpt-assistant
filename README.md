@@ -34,13 +34,13 @@ When used with the [WordPressFreeScout module](https://github.com/verygoodplugin
 - **Token Limits**: Control response length and API costs (50-4000 tokens)
 - **Custom Shortcuts**: Configurable keyboard shortcuts (default: Ctrl+Shift+G)
 - **Model Selection**: Choose the best OpenAI model for your needs
-- **Feedback System**: Optional response quality tracking (can be disabled)
+ 
 - **Error Handling**: Detailed error messages for troubleshooting
 
 ### User Experience
 - **Visual Feedback**: "🤖 Generating AI response..." status indicator
 - **Optional Context Input**: Type context/notes in the reply field before generation
-- **Response Feedback System**: Rate responses and track improvement over time
+ 
 - **Markdown Support**: Automatic conversion of links and bold text
 - **Summernote Integration**: Native support for FreeScout's WYSIWYG editor
 - **Personalized Signatures**: Automatic sign-offs using agent names
@@ -465,6 +465,20 @@ Contributions are welcome! Please feel free to submit issues, feature requests, 
 2. Make your changes
 3. Test thoroughly in a FreeScout environment
 4. Submit a pull request with detailed description
+
+### GPT‑5 Integration Tuning
+
+- File: `gpt5.js` contains all GPT‑5 Responses API behavior behind a small helper (`window.GPT5`).
+- Tweak these defaults to experiment without affecting legacy integrations:
+  - `reasoningEffort`: `'minimal' | 'low' | 'medium' | 'high'` (default: `'high'`)
+  - `textFormat`: `'text'` (ensures visible assistant message output)
+  - `textVerbosity`: `'medium'`
+  - `maxOutputTokens`: `null` (if set, caps reasoning + text together)
+  - `toolChoice`, `parallelToolCalls`, `serviceTier`, `store`, `stream`, `include`
+- The content script calls `GPT5.buildRequest(...)` and `GPT5.extractReply(...)`. You can also adjust at runtime via the DevTools console:
+  - `GPT5.setConfig({ reasoningEffort: 'medium' })`
+  - `GPT5.getConfig()`
+Note: The legacy response feedback UI has been removed to simplify the experience.
 
 ## 📄 License
 

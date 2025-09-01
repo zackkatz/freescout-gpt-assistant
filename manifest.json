@@ -17,7 +17,7 @@
   "content_scripts": [
     {
       "matches": ["*://*/conversation/*"],
-      "js": ["content.js"]
+      "js": ["gpt5.js", "content.js"]
     }
   ]
 }
