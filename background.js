@@ -15,6 +15,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       .then(() => sendResponse({ success: true }))
       .catch(error => sendResponse({ success: false, error: error.message }));
     return true;
+  } else if (request.action === 'fetchPageText') {
+    fetchPageTextWithCache(request.url, request.maxChars || 8000, request.ttlMs || (24*60*60*1000))
+      .then(payload => sendResponse({ success: true, ...payload }))
+      .catch(error => sendResponse({ success: false, error: error.message }));
+    return true;
   }
 });
 
@@ -113,6 +118,38 @@ async function fetchDocs(url) {
   } catch (error) {
     console.error('Error fetching docs:', error);
     return [];
+  }
+}
+
+// Fetch and cache arbitrary HTML pages, return plain text and <title>
+async function fetchPageTextWithCache(url, maxChars, ttlMs) {
+  if (!url) throw new Error('No URL provided');
+  const cacheKey = `page_cache_${url}`;
+  const timeKey = `page_cache_ts_${url}`;
+  try {
+    const stored = await chrome.storage.local.get([cacheKey, timeKey]);
+    const ts = stored[timeKey];
+    const now = Date.now();
+    if (stored[cacheKey] && ts && (now - ts) < ttlMs) {
+      return stored[cacheKey];
+    }
+
+    const resp = await fetch(url, { cache: 'no-cache' });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    let html = await resp.text();
+    // Extract <title>
+    const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+    const title = titleMatch ? titleMatch[1].trim() : '';
+    // Strip scripts/styles and tags
+    html = html.replace(/<script[\s\S]*?<\/script>/gi, '')
+               .replace(/<style[\s\S]*?<\/style>/gi, '');
+    const text = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, maxChars);
+    const payload = { url, title, text };
+    await chrome.storage.local.set({ [cacheKey]: payload, [timeKey]: now });
+    return payload;
+  } catch (e) {
+    console.error('Error fetching page text:', e);
+    throw e;
   }
 }
 

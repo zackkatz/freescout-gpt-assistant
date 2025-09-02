@@ -1,44 +1,49 @@
-async function loadSettings() {
+async function loadSettings(retries = 5, delayMs = 200) {
+  const keys = [
+    'systemPrompt', 'docsUrl', 'openaiKey', 'openaiModel',
+    'temperature', 'maxTokens', 'keyboardShortcut',
+    // GPT-5 tuning keys
+    'gpt5ReasoningEffort', 'gpt5TextVerbosity', 'gpt5MaxOutputTokens',
+    'gpt5ServiceTier', 'gpt5ParallelToolCalls'
+  ];
+
+  const defaults = {
+    systemPrompt: '',
+    docsUrl: '',
+    openaiKey: '',
+    openaiModel: 'gpt-5',
+    temperature: 0.7,
+    maxTokens: 1000,
+    keyboardShortcut: 'Ctrl+Shift+G'
+  };
+
   return new Promise((resolve) => {
-    try {
-      chrome.storage.local.get([
-        'systemPrompt', 'docsUrl', 'openaiKey', 'openaiModel',
-        'temperature', 'maxTokens', 'keyboardShortcut',
-        // GPT-5 tuning keys
-        'gpt5ReasoningEffort', 'gpt5TextVerbosity', 'gpt5MaxOutputTokens',
-        'gpt5ServiceTier', 'gpt5ParallelToolCalls'
-      ], (result) => {
-        if (chrome.runtime.lastError) {
-          console.error('Extension context error:', chrome.runtime.lastError);
-          resolve({ 
-            systemPrompt: '', 
-            docsUrl: '', 
-            openaiKey: '', 
-            openaiModel: 'gpt-5', 
-            temperature: 0.7, 
-            maxTokens: 1000, 
-            keyboardShortcut: 'Ctrl+Shift+G'
+    const attempt = (remaining, wait) => {
+      try {
+        chrome.storage.local.get(keys, (result) => {
+          if (chrome.runtime.lastError) {
+            if (remaining > 0) {
+              return setTimeout(() => attempt(remaining - 1, wait * 2), wait);
+            }
+            console.debug('Storage get failed; using defaults:', chrome.runtime.lastError);
+            return resolve(defaults);
+          }
+          return resolve({
+            ...defaults,
+            ...result,
+            temperature: result && result.temperature ? result.temperature : defaults.temperature,
+            maxTokens: result && result.maxTokens ? result.maxTokens : defaults.maxTokens
           });
-          return;
-        }
-        resolve({
-          ...result,
-          temperature: result.temperature || 0.7,
-          maxTokens: result.maxTokens || 1000
         });
-      });
-    } catch (error) {
-      console.error('Extension context invalidated:', error);
-      resolve({ 
-        systemPrompt: '', 
-        docsUrl: '', 
-        openaiKey: '', 
-        openaiModel: 'gpt-4o', 
-        temperature: 0.7, 
-        maxTokens: 1000, 
-            keyboardShortcut: 'Ctrl+Shift+G' 
-      });
-    }
+      } catch (e) {
+        if (remaining > 0) {
+          return setTimeout(() => attempt(remaining - 1, wait * 2), wait);
+        }
+        console.debug('Storage access exception; using defaults.');
+        return resolve(defaults);
+      }
+    };
+    attempt(retries, delayMs);
   });
 }
 
@@ -153,8 +158,26 @@ function showGeneratingStatus() {
   const textarea = document.querySelector('textarea#body');
   
   if (noteEditable) {
-    noteEditable.innerHTML = '<div style="color: #6c757d; font-style: italic;">🤖 Generating AI response...</div>';
-    noteEditable.style.opacity = '0.7';
+    // hide AI hint while generating
+    const hint = noteEditable.querySelector('.ai-hint-placeholder');
+    if (hint) hint.style.display = 'none';
+    if (!noteEditable.style.position) noteEditable.style.position = 'relative';
+    let overlay = noteEditable.querySelector('.ai-status-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.className = 'ai-status-overlay';
+      overlay.style.position = 'absolute';
+      overlay.style.left = '8px';
+      overlay.style.top = '8px';
+      overlay.style.color = '#6c757d';
+      overlay.style.fontStyle = 'italic';
+      overlay.style.opacity = '0.8';
+      overlay.style.pointerEvents = 'none';
+      overlay.textContent = '🤖 Generating AI response...';
+      noteEditable.appendChild(overlay);
+    } else {
+      overlay.style.display = 'block';
+    }
   } else if (textarea) {
     textarea.value = '🤖 Generating AI response...';
     textarea.style.opacity = '0.7';
@@ -166,6 +189,8 @@ function clearGeneratingStatus() {
   const textarea = document.querySelector('textarea#body');
   
   if (noteEditable) {
+    const overlay = noteEditable.querySelector('.ai-status-overlay');
+    if (overlay) overlay.remove();
     noteEditable.style.opacity = '1';
   } else if (textarea) {
     textarea.style.opacity = '1';
@@ -221,6 +246,87 @@ function injectReply(reply) {
   
   // Feedback system removed for simplicity
 }
+
+// --- AI hint placeholder in editor ---
+function initAIHintPlaceholder() {
+  try {
+    const noteEditable = document.querySelector('.note-editable');
+    const textarea = document.querySelector('textarea#body');
+    
+    const withShortcut = (cb) => {
+      try {
+        loadSettings().then(settings => {
+          const s = (settings && settings.keyboardShortcut) ? settings.keyboardShortcut : 'Ctrl+Shift+G';
+          // Display hint as Ctrl/Cmd for cross-platform clarity
+          const display = s.replace(/^Ctrl\+/, 'Ctrl/Cmd+');
+          cb(display);
+        }).catch(() => cb('Ctrl/Cmd+Shift+G'));
+      } catch (_) {
+        cb('Ctrl/Cmd+Shift+G');
+      }
+    };
+
+    if (noteEditable) {
+      if (!noteEditable.style.position) noteEditable.style.position = 'relative';
+      let hint = noteEditable.querySelector('.ai-hint-placeholder');
+      if (!hint) {
+        hint = document.createElement('div');
+        hint.className = 'ai-hint-placeholder';
+        hint.style.position = 'absolute';
+        hint.style.left = '8px';
+        hint.style.top = '8px';
+        hint.style.color = '#6c757d';
+        hint.style.opacity = '0.6';
+        hint.style.fontStyle = 'italic';
+        hint.style.zIndex = '2';
+        hint.style.pointerEvents = 'none';
+        hint.style.userSelect = 'none';
+        withShortcut((shortcutText) => {
+          hint.textContent = `Tip: Press ${shortcutText} to generate with AI`;
+        });
+        noteEditable.appendChild(hint);
+      }
+
+      const isEmpty = () => {
+        const html = (noteEditable.innerHTML || '')
+          .replace(/<br\s*\/?>/gi, '')
+          .replace(/&nbsp;/gi, '')
+          .replace(/\s+/g, '')
+          .trim();
+        return html.length === 0;
+      };
+      const toggle = () => { hint.style.display = isEmpty() ? 'block' : 'none'; };
+      noteEditable.addEventListener('input', toggle);
+      noteEditable.addEventListener('keyup', toggle);
+      noteEditable.addEventListener('paste', toggle);
+      noteEditable.addEventListener('focus', toggle, true);
+      // Ensure visible by default; events will hide it when content appears
+      hint.style.display = 'block';
+    } else if (textarea) {
+      // Fallback for plain textarea
+      if (!textarea.placeholder || textarea.placeholder.indexOf('Tip:') === -1) {
+        withShortcut((shortcutText) => {
+          textarea.placeholder = `Tip: Press ${shortcutText} to generate with AI`;
+        });
+      }
+    }
+  } catch (e) {
+    console.warn('AI hint placeholder init failed:', e);
+  }
+}
+
+// Attempt to mount hint after DOM settles
+setTimeout(initAIHintPlaceholder, 800);
+
+// Also observe DOM changes to re-init when editor is replaced
+try {
+  const mo = new MutationObserver(() => {
+    if (document.querySelector('.note-editable') && !document.querySelector('.note-editable .ai-hint-placeholder')) {
+      initAIHintPlaceholder();
+    }
+  });
+  mo.observe(document.documentElement || document.body, { childList: true, subtree: true });
+} catch(_) {}
 
 // Feedback system removed
 
@@ -584,17 +690,24 @@ document.addEventListener('keydown', async (e) => {
         }).join('\n---\n');
       }
 
-      // Build the system message
-      let systemMessage = systemPrompt || 'You are a helpful customer support agent.';
+  // Build the system message
+  let systemMessage = systemPrompt || 'You are a helpful customer support agent.';
       
       // Add user name instruction if available
       if (currentUser) {
         systemMessage += `\n\nYour name is ${currentUser}. End your response with an appropriate brief sign-off using your name (e.g., "Best, ${currentUser}" or "Cheers, ${currentUser}"). Do not include any company signature as it will be automatically appended.`;
       }
       
-      // Add documentation context to system message if available
+      // Add documentation context to system message if available (llms.txt)
       if (docsContext) {
-        systemMessage += `\n\nRelevant documentation:\n${docsContext}`;
+        systemMessage += `\n\nRelevant documentation (from llms.txt):\n${docsContext}`;
+      }
+
+      // Targeted documentation fetch based on conversation keywords
+      const targetedDocs = await fetchTargetedDocs(threadMessages);
+      if (targetedDocs && targetedDocs.length > 0) {
+        const targetedBlock = targetedDocs.map(d => `# ${d.title || d.url}\nURL: ${d.url}\n${(d.text || '').slice(0, 3000)}`).join('\n---\n');
+        systemMessage += `\n\nRelevant documentation (targeted):\n${targetedBlock}`;
       }
       
       // Add customer information if available
@@ -615,6 +728,7 @@ document.addEventListener('keydown', async (e) => {
       }
       
       systemMessage += '\n\nRespond concisely and helpfully to the customer based on the conversation history.';
+      systemMessage += '\n\nCitations policy: When producing structured output, include citations only for authoritative pages (prefer wpfusion.com; include vendor docs like woocommerce.com only when directly relevant). Do not invent links. Leave citations empty if none are needed.';
 
       // Build the messages array
       const messages = [
@@ -661,9 +775,13 @@ document.addEventListener('keydown', async (e) => {
         // Build request via dedicated GPT-5 helper for easy experimentation
         if (typeof window.GPT5 === 'object' && typeof window.GPT5.buildRequest === 'function') {
           const overrides = {
-            reasoningEffort: gpt5ReasoningEffort || 'high',
-            textVerbosity: gpt5TextVerbosity || 'medium',
-            parallelToolCalls: gpt5ParallelToolCalls !== false
+            reasoningEffort: gpt5ReasoningEffort || 'minimal',
+            textVerbosity: gpt5TextVerbosity || 'low',
+            parallelToolCalls: gpt5ParallelToolCalls !== false,
+            // Structured outputs schema: answer + citations
+            responseFormatJSONSchema: buildStructuredSchema(),
+            // Prompt caching: stable key derived from prompt + docs
+            promptCacheKey: await computePromptCacheKey(sanitizedSystemMessage)
           };
           if (typeof gpt5MaxOutputTokens === 'number') overrides.maxOutputTokens = gpt5MaxOutputTokens;
           if (gpt5ServiceTier) overrides.serviceTier = gpt5ServiceTier;
@@ -718,21 +836,36 @@ document.addEventListener('keydown', async (e) => {
       
       // Extract reply based on API type
       let reply;
+      let structured = null;
       if (isGPT5) {
         if (typeof window.GPT5 === 'object' && typeof window.GPT5.extractReply === 'function') {
           reply = window.GPT5.extractReply(data);
         } else {
           reply = (data && typeof data.output_text === 'string') ? data.output_text : '';
         }
+        // Try to parse structured JSON (answer + citations)
+        if (reply && typeof reply === 'string' && reply.trim().startsWith('{')) {
+          try {
+            const parsed = JSON.parse(reply);
+            if (parsed && (parsed.answer || parsed.citations)) {
+              structured = parsed;
+            }
+          } catch(_) {}
+        }
       } else {
         reply = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
       }
       
-      if (!reply || (typeof reply === 'string' && reply.trim() === '')) {
+      if ((!reply || (typeof reply === 'string' && reply.trim() === '')) && !structured) {
         throw new Error('No response content received from OpenAI API');
       }
       
-      injectReply(typeof reply === 'string' ? reply : String(reply));
+      if (structured && structured.answer) {
+        const finalText = formatStructuredAnswer(structured);
+        injectReply(finalText);
+      } else {
+        injectReply(typeof reply === 'string' ? reply : String(reply));
+      }
     } catch (error) {
       console.error('Error generating response:', error);
       clearGeneratingStatus();
@@ -755,3 +888,97 @@ document.addEventListener('keydown', async (e) => {
     }
   }
 });
+
+// Build JSON schema for structured outputs (answer + citations)
+function buildStructuredSchema() {
+  return {
+    name: 'wp_fusion_support_reply',
+    schema: {
+      type: 'object',
+      properties: {
+        answer: { type: 'string', description: 'The support reply text formatted for the customer.' },
+        citations: {
+          type: 'array',
+          description: 'List of documentation links cited to support the answer. Only include authoritative links.',
+          items: {
+            type: 'object',
+            properties: {
+              url: { type: 'string' },
+              title: { type: 'string' }
+            },
+            required: ['url','title'],
+            additionalProperties: false
+          }
+        }
+      },
+      required: ['answer','citations'],
+      additionalProperties: false
+    },
+    strict: true
+  };
+}
+
+// Compute a stable prompt cache key for the current prompt/docs
+async function computePromptCacheKey(prompt) {
+  const input = `v1|${prompt}`;
+  try {
+    if (window.crypto && window.crypto.subtle) {
+      const enc = new TextEncoder().encode(input);
+      const digest = await crypto.subtle.digest('SHA-256', enc);
+      return [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+  } catch (_) {}
+  // Fallback: simple hash
+  let h = 2166136261;
+  for (let i = 0; i < input.length; i++) {
+    h ^= input.charCodeAt(i);
+    h += (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24);
+  }
+  return `fnv1a_${(h >>> 0).toString(16)}`;
+}
+
+// Convert structured answer to final text with citations in Markdown
+function formatStructuredAnswer(obj) {
+  const ans = (obj.answer || '').trim();
+  const cites = Array.isArray(obj.citations) ? obj.citations : [];
+  if (!cites.length) return ans;
+  const tail = '\n\nSources:\n' + cites.map(c => {
+    const url = c.url || '';
+    const title = (c.title && c.title.trim()) || url;
+    return `- [${title}](${url})`;
+  }).join('\n');
+  return ans + tail;
+}
+
+// Fetch targeted docs based on keywords in the conversation
+async function fetchTargetedDocs(messages) {
+  try {
+    const text = (messages || []).map(m => (m && m.content) || '').join(' ').toLowerCase();
+    const mappings = [
+      { key: /woocommerce|woo\b/, url: 'https://wpfusion.com/documentation/ecommerce/woocommerce/', title: 'WooCommerce Integration' },
+      { key: /easy\s*digital\s*downloads|\bedd\b/, url: 'https://wpfusion.com/documentation/ecommerce/easy-digital-downloads/', title: 'Easy Digital Downloads Integration' },
+      { key: /gravity\s*forms|gravityforms|gf\b/, url: 'https://wpfusion.com/documentation/lead-generation/gravity-forms/', title: 'Gravity Forms Integration' },
+      { key: /learndash/, url: 'https://wpfusion.com/documentation/learning-management/learndash/', title: 'LearnDash Integration' }
+    ];
+    const candidates = mappings.filter(m => m.key.test(text)).slice(0, 2);
+    if (!candidates.length) return [];
+    const results = [];
+    for (const c of candidates) {
+      const res = await new Promise(resolve => {
+        try {
+          chrome.runtime.sendMessage({ action: 'fetchPageText', url: c.url, maxChars: 8000 }, (r) => {
+            if (chrome.runtime.lastError || !r || !r.success) return resolve(null);
+            resolve({ url: r.url, title: r.title || c.title, text: r.text || '' });
+          });
+        } catch (e) {
+          resolve(null);
+        }
+      });
+      if (res && res.text) results.push(res);
+    }
+    return results;
+  } catch (e) {
+    console.warn('Targeted docs fetch failed:', e);
+    return [];
+  }
+}

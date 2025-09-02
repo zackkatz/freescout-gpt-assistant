@@ -22,6 +22,12 @@
 
     // Extra includes for debugging (e.g., reasoning.encrypted_content)
     include: null, // e.g., ['message.output_text.logprobs']
+
+    // Structured outputs (JSON Schema)
+    responseFormatJSONSchema: null, // e.g., { type: 'object', properties: {...}, required: [...] }
+
+    // Prompt caching
+    promptCacheKey: null,
   });
 
   let config = { ...DEFAULTS };
@@ -31,8 +37,8 @@
 
     const body = { model, input };
 
-    // Text output configuration
-    if (cfg.textFormat) {
+    // Text output configuration (skip if using structured outputs)
+    if (!cfg.responseFormatJSONSchema && cfg.textFormat) {
       body.text = { format: { type: cfg.textFormat } };
       if (cfg.textVerbosity) body.text.verbosity = cfg.textVerbosity;
     }
@@ -54,6 +60,23 @@
     if (typeof cfg.store === 'boolean') body.store = cfg.store;
     if (cfg.stream) body.stream = true;
     if (Array.isArray(cfg.include) && cfg.include.length) body.include = cfg.include;
+
+    // Structured outputs via text.format
+    if (cfg.responseFormatJSONSchema) {
+      const js = cfg.responseFormatJSONSchema;
+      const name = js.name || 'structured_output';
+      // Accept either {name, schema, strict} or a raw schema object
+      const schema = js.schema ? js.schema : js;
+      const strict = js.schema ? js.strict : undefined;
+      body.text = { format: { type: 'json_schema', name, schema } };
+      if (typeof strict !== 'undefined') body.text.format.strict = !!strict;
+      if (cfg.textVerbosity) body.text.verbosity = cfg.textVerbosity;
+    }
+
+    // Prompt cache key
+    if (cfg.promptCacheKey) {
+      body.prompt_cache_key = cfg.promptCacheKey;
+    }
 
     return body;
   }
