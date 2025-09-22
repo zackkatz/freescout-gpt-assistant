@@ -91,9 +91,17 @@
   static removeDangerousPatterns(html) {
     let cleaned = html;
     
-    this.DANGEROUS_PATTERNS.forEach(pattern => {
-      cleaned = cleaned.replace(pattern, '');
-    });
+static removeDangerousPatterns(html) {
+  let cleaned = html;
+  
+  this.DANGEROUS_PATTERNS.forEach(pattern => {
+    // Reset lastIndex to ensure consistent behavior
+    pattern.lastIndex = 0;
+    cleaned = cleaned.replace(pattern, '');
+  });
+  
+  return cleaned;
+}
 
     return cleaned;
   }
