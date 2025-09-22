@@ -370,8 +370,17 @@
                         'Unknown';
       
       const messageText = HTMLSanitizer?.sanitize ? 
-        HTMLSanitizer.sanitize(thread.body || '') :
-        (thread.body || '');
+// adapters/helpscoutAdapter.js
+
+// …
+
+- const messageText = HTMLSanitizer?.sanitize ? 
+-   HTMLSanitizer.sanitize(thread.body || '') :
+ const messageText = HTMLSanitizer?.sanitize ? 
+   HTMLSanitizer.sanitize(thread.body || '') :
+   this.basicSanitize(thread.body || ''); // Use fallback sanitization from base class
+
+// …
       
       if (messageText) {
         messages.push({
