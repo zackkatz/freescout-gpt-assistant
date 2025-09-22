@@ -427,13 +427,13 @@
       // Try to get customer name from conversation header
       const customerName = this.querySelector('.conv-customer-name, .customer-name');
       if (customerName) {
-        data.customerName = customerName.textContent.trim();
+        data.name = customerName.textContent.trim();
       }
       
       // Try to get customer email
       const customerEmail = this.querySelector('.conv-customer-email, .customer-email');
       if (customerEmail) {
-        data.customerEmail = customerEmail.textContent.trim();
+        data.email = customerEmail.textContent.trim();
       }
       
       // Try to get conversation subject
